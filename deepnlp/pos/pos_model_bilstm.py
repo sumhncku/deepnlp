@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding:utf-8 -*-
-""" 
+"""
 POS tagger for building a LSTM based POS tagging model.
 """
 
@@ -48,8 +48,8 @@ class POSTagger(object):
     vocab_size = config.vocab_size
     
     # Define input and target tensors
-    self._input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
-    self._targets = tf.placeholder(tf.int32, [batch_size, num_steps])
+    self._input_data = tf.placeholder(tf.int32, [batch_size, num_steps], name = "input_data")
+    self._targets = tf.placeholder(tf.int32, [batch_size, num_steps], name = "targets")
     
     with tf.device("/cpu:0"):
       embedding = tf.get_variable("embedding", [vocab_size, size], dtype=data_type())
@@ -161,8 +161,8 @@ def _lstm_model(inputs, targets, config):
     vocab_size = config.vocab_size
     target_num = config.target_num # target output number    
     
-    lstm_cell = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=0.0, state_is_tuple=True)
-    cell = tf.contrib.rnn.MultiRNNCell([lstm_cell] * config.num_layers, state_is_tuple=True)
+    # change to adapt to tf1.2 API, create different layers
+    cell = tf.nn.rnn_cell.MultiRNNCell([tf.nn.rnn_cell.BasicLSTMCell(size) for _ in range(num_layers)])
     
     initial_state = cell.zero_state(batch_size, data_type())
     
@@ -177,8 +177,8 @@ def _lstm_model(inputs, targets, config):
     output = tf.reshape(tf.concat(outputs, 1), [-1, size])    # output shape [time_step, size]
     softmax_w = tf.get_variable("softmax_w", [size, target_num], dtype=data_type())
     softmax_b = tf.get_variable("softmax_b", [target_num], dtype=data_type())
-    logits = tf.matmul(output, softmax_w) + softmax_b         # logits shape[time_step, target_num]
-    
+    logits = tf.add(tf.matmul(output, softmax_w), softmax_b, name= "logits") 
+
     loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = tf.reshape(targets, [-1]), logits = logits)
     cost = tf.reduce_sum(loss)/batch_size # loss [time_step]
     
@@ -199,12 +199,12 @@ def _bilstm_model(inputs, targets, config):
     vocab_size = config.vocab_size
     target_num = config.target_num # target output number    
     
-    lstm_fw_cell = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=0.0, state_is_tuple=True)
-    lstm_bw_cell = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=0.0, state_is_tuple=True)
-        
-    cell_fw = tf.contrib.rnn.MultiRNNCell([lstm_fw_cell] * num_layers, state_is_tuple=True)
-    cell_bw = tf.contrib.rnn.MultiRNNCell([lstm_bw_cell] * num_layers, state_is_tuple=True)
-    
+    # NOTICE: Changes in TF 1.2, create LSTM layer with different variables
+    # Multi-Layer Forward LSTM Cell
+    cell_fw = tf.nn.rnn_cell.MultiRNNCell([tf.nn.rnn_cell.BasicLSTMCell(size) for _ in range(num_layers)])
+    # Multi-Layer Backward LSTM Cell
+    cell_bw = tf.nn.rnn_cell.MultiRNNCell([tf.nn.rnn_cell.BasicLSTMCell(size) for _ in range(num_layers)])
+
     initial_state_fw = cell_fw.zero_state(batch_size, data_type())
     initial_state_bw = cell_bw.zero_state(batch_size, data_type())
     
@@ -212,7 +212,7 @@ def _bilstm_model(inputs, targets, config):
     inputs_list = [tf.squeeze(s, axis = 1) for s in tf.split(value = inputs, num_or_size_splits = num_steps, axis = 1)]
     
     with tf.variable_scope("pos_bilstm"):
-        outputs, state_fw, state_bw = tf.contrib.rnn.static_bidirectional_rnn(
+        outputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(
             cell_fw, cell_bw, inputs_list, initial_state_fw = initial_state_fw, 
             initial_state_bw = initial_state_bw)
     
@@ -224,7 +224,7 @@ def _bilstm_model(inputs, targets, config):
     
     softmax_w = tf.get_variable("softmax_w", [size * 2, target_num], dtype=data_type())
     softmax_b = tf.get_variable("softmax_b", [target_num], dtype=data_type())
-    logits = tf.matmul(output, softmax_w) + softmax_b
+    logits = tf.add(tf.matmul(output, softmax_w), softmax_b, name= "logits")
     
     # adding extra statistics to monitor
     correct_prediction = tf.equal(tf.cast(tf.argmax(logits, 1), tf.int32), tf.reshape(targets, [-1]))

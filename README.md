@@ -12,6 +12,7 @@ Brief Introduction
     * [Segmentation](#segmentation)
     * [POS](#pos)
     * [NER](#ner)
+    * [Parser](#parser)
     * [Pipeline](#pipeline)
     * [Textsum](#textsum)
     * [Textrank](#textrank)
@@ -28,16 +29,17 @@ Modules
     * Word Segmentation/Tokenization
     * Part-of-speech (POS)
     * Named-entity-recognition(NER)
+    * Dependency-parsing (Parser)
     * textsum: automatic summarization Seq2Seq-Attention models
     * textrank: extract the most important sentences
     * textcnn: document classification
-    * Web API: Free Tensorflow empowered web API
-    * Planed: Parsing, Automatic Summarization
+    * Web API: Free Tensorflow based web API
 
 * Algorithm(Closely following the state-of-Art)
     * Word Segmentation: Linear Chain CRF(conditional-random-field), based on python CRF++ module
-    * POS: LSTM/BI-LSTM network, based on Tensorflow
-    * NER: LSTM/BI-LSTM/LSTM-CRF network, based on Tensorflow
+    * POS: LSTM/BI-LSTM/BI-LSTM-CRF network, based on Tensorflow
+    * NER: LSTM/BI-LSTM/BI-LSTM-CRF network, based on Tensorflow
+    * Parser: Arc-standard parsing system, ANN model
     * Textsum: Seq2Seq with attention mechanism
     * Texncnn: CNN
 
@@ -50,7 +52,7 @@ Installation
 ================
 * Requirements
     * CRF++ (>=0.54)
-    * Tensorflow(1.0) 
+    * Tensorflow(1.2)
 This project is up to date with the latest tensorflow release. For tensorflow (<=0.12.0), use deepnlp <=0.1.5 version. See RELEASE.md for more details
 
 * Pip
@@ -207,6 +209,17 @@ for (w,t) in tagging:
 
 ```
 
+Parser
+----------
+句法依存分析
+
+```python
+#coding:utf-8
+
+
+
+```
+
 Pipeline
 ----------
 ```python
@@ -261,6 +274,9 @@ See instructions: [README](https://github.com/rockingdingo/deepnlp/tree/master/d
 
 ###NER model
 See instructions: [README](https://github.com/rockingdingo/deepnlp/tree/master/deepnlp/ner)
+
+###Parser model
+See instructions: [README](https://github.com/rockingdingo/deepnlp/tree/master/deepnlp/parse)
 
 ###Textsum model
 See instructions: [README](https://github.com/rockingdingo/deepnlp/tree/master/deepnlp/textsum)
@@ -317,11 +333,11 @@ deepnlp项目是基于Tensorflow平台的一个python版本的NLP套装, 目的�
     * 分词 Word Segmentation/Tokenization
     * 词性标注 Part-of-speech (POS)
     * 命名实体识别 Named-entity-recognition(NER)
+    * 句法依存分析 Dependency Parsing (Parser)
     * 自动生成式文摘 Textsum (Seq2Seq-Attention)
     * 关键句子抽取 Textrank
     * 文本分类 Textcnn (WIP)
     * 可调用 Web Restful API
-    * 计划中: 句法分析 Parsing
 
 * 算法实现
     * 分词: 线性链条件随机场 Linear Chain CRF, 基于CRF++包来实现
@@ -330,7 +346,6 @@ deepnlp项目是基于Tensorflow平台的一个python版本的NLP套装, 目的�
 
 * 预训练模型
     * 中文: 基于人民日报语料和微博混合语料: 分词, 词性标注, 实体识别
-
 
 API 服务
 ---------------

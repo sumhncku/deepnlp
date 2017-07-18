@@ -95,4 +95,3 @@ def load_model(lang = 'zh'):
     data_path = os.path.join(pkg_path, "ner/data", lang) # NER vocabulary data path
     ckpt_path = os.path.join(pkg_path, "ner/ckpt", lang, "ner.ckpt") # NER model checkpoint path
     return ModelLoader(lang, data_path, ckpt_path)
-

@@ -1,8 +1,12 @@
 # Release Log
 
 ## [0.1.7] - WIP
-### Planned
-parser module
+### Changed
+tensorflow (=1.2) Support the tensorflow 1.2 function changes
+
+### Added
+- Bi-LSTM-CRF model for POS and NER module
+- Parser: Python implementation of the dependency parser, which use the same architecture as stanford CoreNLP NNDepParser
 
 ## [0.1.6] - 2017-03-09
 ### Changed
@@ -24,4 +28,3 @@ tensorflow (<=0.12.0)
 - Segment: Adding Chinese Segmentation models trained by CRF++ package
 - POS: Including pre-trained Chinese models from China Daily corpus
 - NER: Including pre-trained Chinese models from China Daily corpus
-

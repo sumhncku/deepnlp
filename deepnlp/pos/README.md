@@ -54,6 +54,17 @@ python pos_model_bilstm.py en # Bi-LSTM model English
 
 python pos_model_bilstm.py zh # Bi-LSTM model Chinese
 
+python pos_model_bilstm_crf.py zh # Bi-LSTM-CRF model Chinese
+
 ```
 #### Trained model can be found under folder ../deepnlp/pos/ckpt/'your_language_code'
+
+#### New Update (July-18)
+## Bi-directional LSTM-CRF model (Bi-LSTM-CRF)
+Adding Bi-LSTM-CRF model script (pos_model_bilstm_crf.py) for training Bi-LSTM-CRF model of sequence tagging tasks. 
+The final layer is a CRF layer with global normalized loss function, compared to locally normalized loss function.
+
+See papers for more details: 
+Bidirectional LSTM-CRF Models for Sequence Tagging (https://arxiv.org/pdf/1508.01991v1.pdf)
+Natural Language Processing (Almost) from Scratch (http://jmlr.org/papers/volume12/collobert11a/collobert11a.pdf)
 

@@ -47,18 +47,15 @@ class NERTagger(object):
     vocab_size = config.vocab_size
     target_num = config.target_num # target output number
     
-    self._input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
-    self._targets = tf.placeholder(tf.int32, [batch_size, num_steps])
+    self._input_data = tf.placeholder(tf.int32, [batch_size, num_steps], name = "input_data")
+    self._targets = tf.placeholder(tf.int32, [batch_size, num_steps], name = "targets")
     
     # Check if Model is Training
     self.is_training = is_training
     
-    lstm_cell = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=0.0, state_is_tuple=True)
-    if is_training and config.keep_prob < 1:
-      lstm_cell = tf.contrib.rnn.DropoutWrapper(
-          lstm_cell, output_keep_prob=config.keep_prob)
-    cell = tf.contrib.rnn.MultiRNNCell([lstm_cell] * config.num_layers, state_is_tuple=True)
-    
+    # NOTICE: TF1.2 change API to make RNNcell share the same variables under namespace
+    # Create multi-layer LSTM model, Separate Layers with different variables, we need to create multiple RNNCells separately
+    cell = tf.nn.rnn_cell.MultiRNNCell([tf.nn.rnn_cell.BasicLSTMCell(size) for _ in range(config.num_layers)])
     self._initial_state = cell.zero_state(batch_size, data_type())
     
     with tf.device("/cpu:0"):
@@ -78,24 +75,23 @@ class NERTagger(object):
         outputs.append(cell_output)
     
     output = tf.reshape(tf.concat(outputs, 1), [-1, size])
-    softmax_w = tf.get_variable(
-        "softmax_w", [size, target_num], dtype=data_type())
+    softmax_w = tf.get_variable("softmax_w", [size, target_num], dtype=data_type())
     softmax_b = tf.get_variable("softmax_b", [target_num], dtype=data_type())
-    logits = tf.matmul(output, softmax_w) + softmax_b
-    loss = tf.contrib.legacy_seq2seq.sequence_loss_by_example(
-        logits = [logits],
-        targets = [tf.reshape(self._targets, [-1])],
-        weights = [tf.ones([batch_size * num_steps], dtype=data_type())])
+    logits = tf.add(tf.matmul(output, softmax_w), softmax_b, name= "logits")  # rename logits to output_node for future inference
+    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = tf.reshape(self._targets, [-1]), logits = logits)
     
     # Fetch Reults in session.run()
     self._cost = cost = tf.reduce_sum(loss) / batch_size
     self._final_state = state
     self._logits = logits
     
+    # output class label
+    y_fit = tf.cast(tf.argmax(logits, 1), tf.int32, name = "prediction_label")   # output class prediction    
+    self._correct_prediction = tf.equal(y_fit, tf.reshape(self._targets, [-1]))   # correct labels, tensor of e.g. [1,1,0,1,1] 1 for correct, 0 for wrong
+
     self._lr = tf.Variable(0.0, trainable=False)
     tvars = tf.trainable_variables()
-    grads, _ = tf.clip_by_global_norm(tf.gradients(cost, tvars),
-                                      config.max_grad_norm)
+    grads, _ = tf.clip_by_global_norm(tf.gradients(cost, tvars), config.max_grad_norm)
     optimizer = tf.train.GradientDescentOptimizer(self._lr)
     self._train_op = optimizer.apply_gradients(zip(grads, tvars))
     
@@ -132,6 +128,10 @@ class NERTagger(object):
     return self._logits
 
   @property
+  def correct_prediction(self):
+    return self._correct_prediction
+
+  @property
   def lr(self):
     return self._lr
 
@@ -143,7 +143,7 @@ class NERTagger(object):
 class LargeConfigChinese(object):
   """Large config."""
   init_scale = 0.04
-  learning_rate = 0.1
+  learning_rate = 0.05
   max_grad_norm = 10
   num_layers = 2
   num_steps = 30
@@ -159,7 +159,7 @@ class LargeConfigChinese(object):
 class LargeConfigEnglish(object):
   """Large config."""
   init_scale = 0.04
-  learning_rate = 0.1
+  learning_rate = 0.05
   max_grad_norm = 10
   num_layers = 2
   num_steps = 30
@@ -189,23 +189,28 @@ def run_epoch(session, model, word_data, tag_data, eval_op, verbose=False):
   costs = 0.0
   iters = 0
   state = session.run(model.initial_state)
+  total_count = 0
+  correct_labels = 0
+
   for step, (x, y) in enumerate(reader.iterator(word_data, tag_data, model.batch_size,
                                                     model.num_steps)):
-    fetches = [model.cost, model.final_state, eval_op]
+    fetches = [model.cost, model.correct_prediction, eval_op]  # fetch out loss and correct prediction
     feed_dict = {}
     feed_dict[model.input_data] = x
     feed_dict[model.targets] = y
     for i, (c, h) in enumerate(model.initial_state):
       feed_dict[c] = state[i].c
       feed_dict[h] = state[i].h
-    cost, state, _ = session.run(fetches, feed_dict)
+    cost, correct_prediction, _ = session.run(fetches, feed_dict)
     costs += cost
     iters += model.num_steps
-    
+    total_count += x.shape[1]                        # count of all examples: x_shape [batch_size, num_steps]
+    correct_labels += np.sum(correct_prediction)     # count of correct prediction labels
+
     if verbose and step % (epoch_size // 10) == 10:
-      print("%.3f perplexity: %.3f speed: %.0f wps" %
-            (step * 1.0 / epoch_size, np.exp(costs / iters),
-             iters * model.batch_size / (time.time() - start_time)))
+      accuracy = correct_labels/total_count
+      print("%.3f perplexity: %.3f, accuracy %.3f" %
+            (step * 1.0 / epoch_size,  np.exp(costs / iters), accuracy))
     
     # Save Model to CheckPoint when is_training is True
     if model.is_training:
@@ -213,9 +218,7 @@ def run_epoch(session, model, word_data, tag_data, eval_op, verbose=False):
         checkpoint_path = os.path.join(FLAGS.ner_train_dir, "ner.ckpt")
         model.saver.save(session, checkpoint_path)
         print("Model Saved... at time step " + str(step))
-
   return np.exp(costs / iters)
-
 
 def main(_):
   if not FLAGS.ner_data_path:
@@ -247,6 +250,9 @@ def main(_):
     else:
       print("Created model with fresh parameters.")
       session.run(tf.global_variables_initializer())
+    
+    # write the graph out for further use e.g. C++ API call
+    tf.train.write_graph(session.graph_def, './models/', 'ner_graph.pbtxt', as_text=True)   # output is text
     
     for i in range(config.max_max_epoch):
       lr_decay = config.lr_decay ** max(i - config.max_epoch, 0.0)
